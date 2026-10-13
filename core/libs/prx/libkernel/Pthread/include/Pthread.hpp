@@ -86,6 +86,7 @@ static constexpr int GUEST_EXPLICIT_SCHED = 0;
 static constexpr int GUEST_INHERIT_SCHED = 4;
 static constexpr int GUEST_SCOPE_PROCESS = 0;
 static constexpr int GUEST_SCOPE_SYSTEM = 2;
+static constexpr std::size_t GUEST_DEFAULT_GUARD_SIZE = 0x1000;
 
 inline int GuestCpuFromHost(unsigned hostCpu, KernelCpumask threadAffinity) {
     KernelCpumask mask = threadAffinity & DEFAULT_THREAD_AFFINITY;
@@ -103,7 +104,7 @@ struct PthreadAttrPrivate {
     int _inheritsched;
     KernelCpumask _affinity = DEFAULT_THREAD_AFFINITY;
     bool _affinityExplicit = false;
-    std::size_t _guardsize = 0x1000;
+    std::size_t _guardsize = GUEST_DEFAULT_GUARD_SIZE;
     int _solosched = 0;
     int _scope = GUEST_SCOPE_SYSTEM;
 };
@@ -129,6 +130,7 @@ struct PthreadPrivate {
     std::atomic<KernelCpumask> affinity{DEFAULT_THREAD_AFFINITY};
     std::atomic<int> priority{DEFAULT_THREAD_PRIORITY};
     int scope = GUEST_SCOPE_SYSTEM;
+    std::size_t guardSize = GUEST_DEFAULT_GUARD_SIZE;
     int cpuClockThread = 0;
 #ifndef _WIN32
     clockid_t hostCpuClock{};
