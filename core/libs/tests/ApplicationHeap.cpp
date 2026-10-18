@@ -220,7 +220,9 @@ int main(int argc, char** argv) {
         for (unsigned i = 0; i < 63; ++i) require(pointer[i] == 0x5a);
         pointer = static_cast<unsigned char*>(ApplicationHeapReallocate_nid_no_patch(pointer, 11));
         for (unsigned i = 0; i < 11; ++i) require(pointer[i] == 0x5a);
-        require(ApplicationHeapReallocate_nid_no_patch(pointer, 0) == nullptr);
+        pointer = static_cast<unsigned char*>(ApplicationHeapReallocate_nid_no_patch(pointer, 0));
+        require(pointer != nullptr && pointer[0] == 0x5a);
+        ApplicationHeapFree_nid_no_patch(pointer);
         pointer = static_cast<unsigned char*>(ApplicationHeapReallocate_nid_no_patch(nullptr, 32));
         require(pointer != nullptr);
         ApplicationHeapFree_nid_no_patch(pointer);
@@ -234,7 +236,9 @@ int main(int argc, char** argv) {
         require(pointer != nullptr && ApplicationHeapUsableSize_nid_no_patch(pointer) == 9);
         for (unsigned i = 0; i < 9; ++i) require(pointer[i] == 0x3c);
         *__error_nid_postfix() = 0;
-        require(reallocf_nid_postfix(pointer, 0) == nullptr && *__error_nid_postfix() == 0);
+        pointer = static_cast<unsigned char*>(reallocf_nid_postfix(pointer, 0));
+        require(pointer != nullptr && ApplicationHeapUsableSize_nid_no_patch(pointer) == 1 && *__error_nid_postfix() == 0);
+        ApplicationHeapFree_nid_no_patch(pointer);
         reject([pointer] { ApplicationHeapUsableSize_nid_no_patch(pointer); });
         pointer = static_cast<unsigned char*>(reallocf_nid_postfix(nullptr, 40));
         require(pointer != nullptr);
@@ -313,12 +317,12 @@ int main(int argc, char** argv) {
     require(frees == 6);
     require(reallocf_nid_postfix(storage.data(), 80) == storage.data() && lastSize == 80 && frees == 6);
     require(reallocf_nid_postfix(storage.data(), 16) == storage.data() && lastSize == 16 && frees == 6);
-    require(reallocf_nid_postfix(storage.data(), 0) == nullptr && lastSize == 16 && frees == 7);
+    require(reallocf_nid_postfix(storage.data(), 0) == storage.data() && lastSize == 1 && frees == 6);
     fail = true;
     *__error_nid_postfix() = 0;
-    require(reallocf_nid_postfix(storage.data(), 48) == nullptr && lastSize == 48 && frees == 8 && *__error_nid_postfix() == 12);
+    require(reallocf_nid_postfix(storage.data(), 48) == nullptr && lastSize == 48 && frees == 7 && *__error_nid_postfix() == 12);
     reject([] { ApplicationHeapReallocate_nid_no_patch(storage.data(), 48); });
-    require(frees == 8);
+    require(frees == 7);
     require(_ZnwmRKSt9nothrow_t_nid_postfix(8, nullptr) == nullptr);
     require(_ZnamRKSt9nothrow_t_nid_postfix(8, nullptr) == nullptr);
     reject([] { _Znwm_nid_postfix(8); });

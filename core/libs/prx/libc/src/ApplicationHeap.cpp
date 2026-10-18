@@ -184,13 +184,9 @@ void ApplicationHeapFree_nid_no_patch(void* pointer) {
 }
 
 void* ApplicationHeapReallocate_nid_no_patch(void* pointer, std::size_t bytes) {
-    if (bytes == 0 && pointer != nullptr) {
-        ApplicationHeapFree_nid_no_patch(pointer);
-        return nullptr;
-    }
     const auto reallocate = callback<Reallocate>(3);
     CallbackScope scope;
-    return requireAllocation(reallocate(pointer, bytes));
+    return requireAllocation(reallocate(pointer, bytes == 0 ? 1 : bytes));
 }
 
 void* ApplicationHeapAlign_nid_no_patch(std::size_t alignment, std::size_t bytes) {
