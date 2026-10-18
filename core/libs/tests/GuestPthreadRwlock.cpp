@@ -347,6 +347,13 @@ static void CheckAttrProcessSharing() {
     Require(Throws([&] { pthread_rwlockattr_getpshared_nid_postfix(nullptr, &pshared); }));
     Require(Throws([&] { pthread_rwlockattr_getpshared_nid_postfix(&unset, &pshared); }));
     Require(pthread_rwlockattr_destroy_nid_postfix(&attr) == 0);
+    Require(attr != nullptr);
+    pshared = -1;
+    Require(pthread_rwlockattr_getpshared_nid_postfix(&attr, &pshared) == 0 && pshared == PROCESS_PRIVATE);
+    Require(pthread_rwlockattr_setpshared_nid_postfix(&attr, PROCESS_PRIVATE) == 0);
+    for (const int invalid : {1, 2, -1}) {
+        Require(pthread_rwlockattr_setpshared_nid_postfix(&attr, invalid) == GUEST_EINVAL);
+    }
 }
 
 int main() {
