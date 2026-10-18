@@ -904,6 +904,20 @@ private:
                 const auto limit = configured("APS5_PIPELINE_JOURNAL_ENTRIES", 1024u);
                 if (journal.entries.size() > limit) journal.entries.resize(static_cast<std::size_t>(limit));
                 loaded = std::move(journal);
+                const auto weight = [this](const LoadedEntry& entry) {
+                    std::uint64_t words = 0;
+                    if (entry.kind == ComputeRecord) {
+                        const auto module = loaded.modules.find(entry.compute);
+                        if (module != loaded.modules.end()) words = module->second.result->spirv.size();
+                    } else {
+                        for (const auto& stage : entry.graphics.stages) {
+                            const auto module = loaded.modules.find(stage.identity);
+                            if (module != loaded.modules.end()) words += module->second.result->spirv.size();
+                        }
+                    }
+                    return words;
+                };
+                std::stable_sort(loaded.entries.begin(), loaded.entries.end(), [&](const LoadedEntry& left, const LoadedEntry& right) { return weight(left) > weight(right); });
             } catch (const std::exception& error) {
                 std::fprintf(stderr, "[pipeline-journal] cannot load %s: %s\n", Journal::Instance().Path().string().c_str(), error.what());
             }

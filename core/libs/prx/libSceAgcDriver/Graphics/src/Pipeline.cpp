@@ -1035,6 +1035,7 @@ std::shared_ptr<Pipeline> CachedPipeline(const Context& context, const State& st
         ++store.misses;
         ++store.totals.misses;
     }
+    if (PipelineJournalEnabled() && !PipelineJournalReplaying()) RecordGraphicsPipeline(MakeGraphicsPipelineRecipe(state, vertexInput, resources, shaders, attachmentLayout), shaders);
     // Built outside the mutex: a draw that finds its pipeline resident is not held behind another
     // thread's build (the journal replay builds here too), and a device's driver compiles in
     // parallel when several threads build at once.
@@ -1076,7 +1077,6 @@ std::shared_ptr<Pipeline> CachedPipeline(const Context& context, const State& st
         }
     }
     if (created != nullptr) *created = true;
-    if (PipelineJournalEnabled() && !PipelineJournalReplaying()) RecordGraphicsPipeline(MakeGraphicsPipelineRecipe(state, vertexInput, resources, shaders, attachmentLayout), shaders);
     return pipeline;
 }
 

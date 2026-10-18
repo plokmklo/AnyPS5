@@ -8470,6 +8470,53 @@ void pipelineJournalTests() {
             Require(cancelled->Done() && after.replayFailed == 0 && after.replayRejected == 0 && after.replayedGraphics + after.replayPresent <= before.replayedGraphics + before.replayPresent + 1, "a cancelled replay did not stop cleanly");
         }
         {
+            auto stalledVertex = module(5);
+            stalledVertex.bindings.push_back(makeBinding(Role::GuestBuffers, 0, 1, std::vector<std::uint32_t>(4)));
+            auto stalledFragment = module(6);
+            stalledFragment.pushConstants.resize(8);
+            stalledFragment.bindings.push_back(makeBinding(Role::ShaderData, 0, 1, std::vector<std::uint32_t>(4)));
+            stalledFragment.bindings.back().descriptorSet = ShaderRecompiler::RuntimeAbi::FragmentDescriptorSet;
+            const std::array<CompiledShader, 2> stalledShaders{{{Stage::Vertex, &stalledVertex, 0}, {Stage::Fragment, &stalledFragment, PipelinePushSlotBytes}}};
+            const auto stalledLayouts = DescribeSetLayouts(context, stalledShaders);
+            {
+                std::lock_guard lock(pipelineCreateMutex);
+                blockLibraryCreate = true;
+                libraryCreateEntered = false;
+                releaseLibraryCreate = false;
+            }
+            const auto requestBefore = PipelineJournalTotals();
+            const auto storeBefore = PipelineStoreTotals();
+            std::shared_ptr<Pipeline> stalled;
+            std::thread build([&] { stalled = CachedPipeline(context, state, input, stalledLayouts.View(), stalledShaders, VK_IMAGE_LAYOUT_GENERAL); });
+            {
+                std::unique_lock lock(pipelineCreateMutex);
+                pipelineCreateCondition.wait(lock, [] { return libraryCreateEntered; });
+            }
+            FlushPipelineJournal();
+            const auto requested = PipelineJournalTotals();
+            Require(requested.recordedGraphics == requestBefore.recordedGraphics + 1 && requested.recordedModules == requestBefore.recordedModules + 2 && requested.writeFailures == 0, "a pipeline whose library build is still running was not recorded at its request");
+            {
+                std::lock_guard lock(pipelineCreateMutex);
+                blockLibraryCreate = false;
+                releaseLibraryCreate = true;
+            }
+            pipelineCreateCondition.notify_all();
+            build.join();
+            Require(stalled != nullptr && PipelineStoreTotals().misses == storeBefore.misses + 1, "the stalled draw's pipeline did not enter the store after its build finished");
+            FlushPipelineJournal();
+            Require(PipelineJournalTotals().recordedGraphics == requested.recordedGraphics && PipelineJournalTotals().recordedModules == requested.recordedModules, "a pipeline was recorded a second time after its build finished");
+            ClearCachedPipelines(context.device);
+            const auto storeCleared = PipelineStoreTotals();
+            auto rebuild = StartPipelineJournalReplay(context, fingerprint, hooks);
+            Require(rebuild != nullptr, "the replay of the requested pipeline did not start");
+            rebuild->Wait();
+            const auto rebuilt = PipelineJournalTotals();
+            Require(rebuilt.loadedRecipes == requestBefore.loadedRecipes + 1 && rebuilt.replayFailed == 0 && rebuilt.replayRejected == 0 && rebuilt.writeFailures == 0, "the next run's replay did not load the pipeline the stalled run requested");
+            bool built = true;
+            const auto replayed = CachedPipeline(context, state, input, stalledLayouts.View(), stalledShaders, VK_IMAGE_LAYOUT_GENERAL, &built);
+            Require(replayed != nullptr && !built && PipelineStoreTotals().hits == storeCleared.hits + 1, "the draw did not find the replayed pipeline of a build that stalled in the previous run");
+        }
+        {
             const std::uint32_t meshWithoutOutputSize = 2u;
             std::fstream file(PipelineJournalPath(), std::ios::in | std::ios::out | std::ios::binary);
             file.seekp(4);
