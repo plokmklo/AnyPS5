@@ -523,6 +523,28 @@ void CheckHostHole() {
     }) && imported, "an import into an arena host hole did not run");
     Require(!Watched(hole, bytes), "an import made an arena host hole watched");
 }
+
+std::uint64_t collectHookBegin = 0;
+std::uint64_t collectHookEnd = 0;
+
+void CheckFailedCollectUnwatch() {
+    void* memory = AllocateWatched(3 * Block);
+    const auto base = reinterpret_cast<std::uint64_t>(memory);
+    std::memset(memory, 0x11, 3 * Block);
+    Require(Watched(base + Block, Block), "the probe block was not watched");
+    GuestArena::GuestArenaSetProtection_nid_postfix(base + Block, 0x4000, PAGE_NOACCESS);
+    SetUnwatchHook([](std::uint64_t address, std::size_t bytes) {
+        collectHookBegin = address;
+        collectHookEnd = address + bytes;
+    });
+    const auto stored = MarkWritten(base + Block + 0x8000, 4);
+    SetUnwatchHook(nullptr);
+    GuestArena::GuestArenaSetProtection_nid_postfix(base + Block, 0x4000, PAGE_READWRITE);
+    Require(stored == 0, "a collect that failed over a no-access page still produced trusted stamps");
+    Require(!Watched(base + Block, Block), "a failed collect left its block watched");
+    Require(Watched(base, Block) && Watched(base + 2 * Block, Block), "a failed collect unwatched unrelated blocks");
+    Require(collectHookBegin <= base + Block && collectHookEnd >= base + 2 * Block, "a failed collect did not run the unwatch hook over its block");
+}
 #endif
 
 void CheckVersionRanges() {
@@ -940,6 +962,7 @@ int main() {
         CheckPrivateMappingReuse();
         CheckUntrackedHint();
         CheckHostHoleInChild();
+        CheckFailedCollectUnwatch();
 #endif
         CheckVersionRanges();
         CheckCollectBoundaries();
