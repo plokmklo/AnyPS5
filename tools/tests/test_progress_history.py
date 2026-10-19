@@ -50,9 +50,15 @@ class ProgressHistoryTests(unittest.TestCase):
                      **{name: {"done": i, "total": count, "percent": 100 * i / count} for name in ("libraries", "shaders")}}
                     for i in range(count)]
         short, medium, long = (progress_history.chart(series(count)) for count in (20, 100, 400))
-        self.assertEqual((short.count("rotate(60)"), short.count("<circle")), (20, 40))
-        self.assertEqual((medium.count("rotate(60)"), medium.count("<circle")), (14, 0))
-        self.assertEqual((long.count("rotate(60)"), long.count("<circle")), (14, 0))
+        self.assertEqual(short.count('font-size="10"'), 20)
+        self.assertEqual(medium.count('font-size="10"'), 14)
+        self.assertEqual(long.count('font-size="10"'), 14)
+        self.assertEqual((short.count('fill="transparent"'), medium.count('fill="transparent"'), long.count('fill="transparent"')), (40, 200, 800))
+        for svg, last, total in ((short, "19", "20"), (medium, "99", "100"), (long, "399", "400")):
+            self.assertNotIn("rotate(", svg)
+            self.assertNotIn("<circle", svg)
+            self.assertIn(f"Implemented {last}", svg)
+            self.assertIn(f"Declared {total}", svg)
 
     def test_axis_labels_fall_on_calendar_days_without_commits(self):
         start = date(2026, 8, 3).toordinal()
